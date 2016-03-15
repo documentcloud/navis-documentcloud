@@ -40,7 +40,7 @@ class WP_DocumentCloud {
 		// Check for conflicts with other DocumentCloud plugins.
 		// Not needed on WordPress VIP since no other DocumentCloud plugins exist.
 		if ( ! defined( 'WPCOM_IS_VIP_ENV' ) || ! WPCOM_IS_VIP_ENV ) {
-			add_action( 'admin_init', array( $this, 'check_dc_plugin_conflict') );
+			add_action( 'admin_init', array( $this, 'check_dc_plugin_conflict' ) );
 		}
 
 		// Register the oEmbed provider
@@ -61,6 +61,10 @@ class WP_DocumentCloud {
 
 		// Store DocumentCloud metadata upon post save
 		add_action( 'save_post', array( $this, 'save' ), 10, 2 );
+
+		// print TinyMCE editor template
+		add_action( 'admin_head', array( $this, 'tinymce_init' ) );
+		add_action( 'print_media_templates', array( $this, 'print_media_templates' ) );
 	}
 
 	/**
@@ -126,7 +130,7 @@ class WP_DocumentCloud {
 		$width		= intval( get_option( 'documentcloud_default_width', $wp_embed_defaults['width'] ) );
 		$full_width	= intval( get_option( 'documentcloud_full_width', WP_DocumentCloud::DEFAULT_EMBED_FULL_WIDTH ) );
 
-		return array (
+		return array(
 			'height'		=> $height,
 			'width'			=> $width,
 			'full_width'	=> $full_width,
@@ -178,10 +182,10 @@ class WP_DocumentCloud {
 	 * @return string
 	 */
 	function prepare_oembed_fetch( $provider, $url, $args ) {
-        // Merge actual args with default attributes so that defaults are always
-        // sent to oEmbed endpoint
-        $default_atts = $this->get_default_atts();
-        $atts         = array_merge( $default_atts, $args );
+		// Merge actual args with default attributes so that defaults are always
+		// sent to oEmbed endpoint
+		$default_atts = $this->get_default_atts();
+		$atts         = array_merge( $default_atts, $args );
 
 		// Clean and prepare arguments
 		foreach ( $atts as $key => $value ) {
@@ -233,9 +237,8 @@ class WP_DocumentCloud {
 		if ( empty( $atts['url'] ) ) {
 			if ( empty( $atts['id'] ) ) {
 				return '';
-			}
-			else {
-				$url = $filtered_atts['url'] = "https://" . WP_DocumentCloud::OEMBED_RESOURCE_DOMAIN . "/documents/{$atts['id']}.html";
+			} else {
+				$url = $filtered_atts['url'] = 'https://' . WP_DocumentCloud::OEMBED_RESOURCE_DOMAIN . "/documents/{$atts['id']}.html";
 			}
 		}
 
@@ -258,7 +261,7 @@ class WP_DocumentCloud {
 
 		// If the format is set to wide, it blows away all other width
 		// settings.
-		if ( 'wide' == $filtered_atts['format'] ) {
+		if ( 'wide' === $filtered_atts['format'] ) {
 			$filtered_atts['maxwidth'] = $default_sizes['full_width'];
 		}
 
@@ -321,8 +324,7 @@ class WP_DocumentCloud {
 			$url = "{$elements['protocol']}://" . WP_DocumentCloud::OEMBED_RESOURCE_DOMAIN . "/documents/{$elements['document_slug']}";
 			if ( isset( $elements['page_number'] ) ) {
 				$url .= "/pages/{$elements['page_number']}";
-			}
-			else if ( isset( $elements['note_id'] ) ) {
+			} else if ( isset( $elements['note_id'] ) ) {
 				$url .= "/annotations/{$elements['note_id']}";
 			}
 			$url .= '.html';
@@ -444,9 +446,9 @@ class WP_DocumentCloud {
 			preg_match_all( '/'.get_shortcode_regex().'/', $post->post_content, $matches );
 			$tags = $matches[2];
 			$args = $matches[3];
-			foreach( $tags as $i => $tag ) {
-				if ( 'documentcloud' == $tag ) {
-					$parsed_atts = shortcode_parse_atts( $args[$i] );
+			foreach ( $tags as $i => $tag ) {
+				if ( 'documentcloud' === $tag ) {
+					$parsed_atts = shortcode_parse_atts( $args[ $i ] );
 					$atts = shortcode_atts( $default_atts, $parsed_atts );
 
 					// Get a doc id to keep array keys consistent
@@ -456,8 +458,7 @@ class WP_DocumentCloud {
 							$meta_key = $elements['document_slug'];
 							if ( isset( $elements['page_number'] ) ) {
 								$meta_key .= "-p{$elements['page_number']}";
-							}
-							else if ( isset( $elements['note_id'] ) ) {
+							} else if ( isset( $elements['note_id'] ) ) {
 								$meta_key .= "-a{$elements['note_id']}";
 							}
 						}
@@ -468,7 +469,7 @@ class WP_DocumentCloud {
 					// If no id, don't bother storing because it's wrong
 					if ( isset( $meta_key ) ) {
 						$width = intval( isset( $parsed_atts['width'] ) ? $parsed_atts['width'] : $atts['maxwidth'] );
-						if ( 'wide' == $atts['format'] || $width > $default_sizes['width'] ) {
+						if ( 'wide' === $atts['format'] || $width > $default_sizes['width'] ) {
 							$wide_assets[ $meta_key ] = true;
 						} else {
 							$wide_assets[ $meta_key ] = false;
@@ -480,6 +481,61 @@ class WP_DocumentCloud {
 		}
 	}
 
+	/**
+	 * Add our button to the array of mce buttons
+	 *
+	 * @param array $buttons
+	 *
+	 * @return array
+	 */
+	public function mce_buttons( $buttons ) {
+		$buttons[] = 'documentcloud';
+
+		return $buttons;
+	}
+
+	/**
+	 * Register the script to make the button work
+	 *
+	 * @param array $plugin_array
+	 *
+	 * @return array
+	 */
+	public static function mce_external_plugins( $plugin_array ) {
+		$name = 'documentcloud';
+		$plugin_array['documentcloud'] = plugins_url( 'assets/tinymce.js', __FILE__ );
+
+		return $plugin_array;
+	}
+
+	/**
+	 * Add some hooks when tinymce boots up to insert our button
+	 */
+	public function tinymce_init() {
+		if ( ! current_user_can( 'edit_posts' ) && ! current_user_can( 'edit_pages' ) ) {
+			return;
+		}
+
+		if ( 'true' === get_user_option( 'rich_editing' ) ) {
+			add_filter( 'mce_buttons', array( $this, 'mce_buttons' ) );
+			add_filter( 'mce_external_plugins', array( $this, 'mce_external_plugins' ) );
+		}
+	}
+
+	/**
+	 * Print the template used for TinyMCE previews
+	 */
+	public function print_media_templates() {
+		if ( ! isset( get_current_screen()->id ) || 'post' !== get_current_screen()->base ) {
+			return;
+		}
+		?>
+		<script type="text/html" id="tmpl-editor-documentcloud">
+			<div id='<?php echo esc_attr( 'DV-viewer-{{ data.id }}' ); ?>' class='DV-container'></div>
+			<style type='text/css'><?php echo esc_attr( '#DV-viewer-{{ data.id }}' ); ?> * {box-sizing: content-box;}</style>
+		</script>
+	<?php
+	}
 }
 
 new WP_DocumentCloud;
