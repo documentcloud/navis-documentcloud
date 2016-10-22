@@ -127,3 +127,4 @@ Adds support for embedding notes and enables caching.
 
 = 0.2 =
 Adds oEmbed support for future-proofing embed codes. Provides additional embed options like `default_page`.
+  add::oembed 
