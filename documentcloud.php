@@ -178,7 +178,7 @@ class WP_DocumentCloud {
 		// Merge actual args with default attributes so that defaults are always
 		// sent to oEmbed endpoint
 		$default_atts = $this->get_default_atts();
-		$atts         = array_merge( $default_atts, $args );
+		$atts         = wp_parse_args( $args, $default_atts );
 
 		// Some resources (like notes) have multiple possible
 		// user-facing URLs. We recompose them into a single form.
